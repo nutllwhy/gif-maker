@@ -65,6 +65,23 @@ function seededRandom(seed) {
     return x - Math.floor(x);
 }
 
+// 计算图片在画布中的适配尺寸（保持宽高比，不超出画布70%）
+function getFitSize(image, canvasW, canvasH, maxRatio = 0.7) {
+    const maxW = canvasW * maxRatio;
+    const maxH = canvasH * maxRatio;
+    const imgRatio = image.width / image.height;
+    
+    let w, h;
+    if (imgRatio > maxW / maxH) {
+        w = maxW;
+        h = maxW / imgRatio;
+    } else {
+        h = maxH;
+        w = maxH * imgRatio;
+    }
+    return { width: w, height: h };
+}
+
 // ===== 粒子系统 =====
 class ParticleSystem {
     constructor(count, seed) {
@@ -201,15 +218,17 @@ const EFFECTS = {
                 ctx.shadowColor = '#ffd700';
                 ctx.shadowBlur = 50;
                 const glowScale = scale * 1.05;
-                const gw = image.width * glowScale;
-                const gh = image.height * glowScale;
+                const fit = getFitSize(image, width, height);
+                const gw = fit.width * glowScale;
+                const gh = fit.height * glowScale;
                 ctx.drawImage(image, cx - gw/2, cy - gh/2, gw, gh);
                 ctx.restore();
             }
             
             ctx.globalAlpha = 1;
-            const imgW = image.width * scale;
-            const imgH = image.height * scale;
+            const fit = getFitSize(image, width, height);
+            const imgW = fit.width * scale;
+            const imgH = fit.height * scale;
             ctx.drawImage(image, cx - imgW/2, cy - imgH/2, imgW, imgH);
         },
         
@@ -257,8 +276,9 @@ const EFFECTS = {
             ctx.globalAlpha = blink;
             
             const scale = 0.85 + easeOutQuad(clamp(progress * 1.5, 0, 1)) * 0.15;
-            const imgW = image.width * scale;
-            const imgH = image.height * scale;
+            const fit = getFitSize(image, width, height);
+            const imgW = fit.width * scale;
+            const imgH = fit.height * scale;
             ctx.drawImage(image, cx - imgW/2 + shakeX, cy - imgH/2 + shakeY, imgW, imgH);
             
             // 警示文字
@@ -368,9 +388,9 @@ const EFFECTS = {
             const bounce = p.bounceHeight / 100;
             const bounceY = Math.sin(clamp(progress * 3, 0, Math.PI)) * height * bounce * 0.3;
             const scale = easeOutBack(clamp(progress * 1.5, 0, 1));
-            
-            const imgW = image.width * scale;
-            const imgH = image.height * scale;
+            const fit = getFitSize(image, width, height);
+            const imgW = fit.width * scale;
+            const imgH = fit.height * scale;
             const imgX = cx - imgW/2;
             const imgY = cy - imgH/2 - bounceY;
             
@@ -412,8 +432,9 @@ const EFFECTS = {
             
             // 素材缩小放在上方
             const imgScale = 0.5 + (1 - eased) * 0.1;
-            const imgW = image.width * imgScale;
-            const imgH = image.height * imgScale;
+            const fit = getFitSize(image, width, height);
+            const imgW = fit.width * imgScale;
+            const imgH = fit.height * imgScale;
             ctx.drawImage(image, cx - imgW/2, cy - imgH - 20, imgW, imgH);
             
             // 数字
@@ -468,4 +489,5 @@ if (typeof window !== 'undefined') {
     window.drawSparkle = drawSparkle;
     window.seededRandom = seededRandom;
     window.ParticleSystem = ParticleSystem;
+    window.getFitSize = getFitSize;
 }
