@@ -1,0 +1,9 @@
+{
+  "name": "gif-maker",
+  "version": "1.0.0",
+  "description": "直播间动效GIF生成器",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8080"
+  }
+}

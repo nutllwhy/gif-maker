@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直播间动效GIF生成器</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="app-header">
+            <h1>🎬 直播间动效GIF生成器</h1>
+            <p>上传素材 → 选择特效 → 调整参数 → 导出GIF</p>
+        </header>
+        
+        <main class="workspace">
+            <!-- 左侧：素材与模板 -->
+            <aside class="sidebar left">
+                <div class="panel">
+                    <h3>📁 素材上传</h3>
+                    <div class="upload-zone" id="uploadZone">
+                        <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif">
+                        <div class="upload-hint">
+                            <span class="upload-icon">📤</span>
+                            <span>点击上传或拖拽图片</span>
+                            <small>支持 PNG, JPG, WEBP</small>
+                        </div>
+                    </div>
+                    <div class="material-list" id="materialList"></div>
+                </div>
+                
+                <div class="panel">
+                    <h3>🎨 特效模板</h3>
+                    <div class="template-list" id="templateList">
+                        <!-- 由JS动态生成 -->
+                    </div>
+                </div>
+            </aside>
+            
+            <!-- 中间：预览 -->
+            <section class="preview-area">
+                <div class="canvas-wrapper">
+                    <canvas id="previewCanvas" width="400" height="400"></canvas>
+                    <div class="canvas-overlay" id="canvasOverlay"></div>
+                </div>
+                <div class="controls">
+                    <button id="btnPlay" class="btn primary">▶ 播放</button>
+                    <button id="btnStop" class="btn">⏹ 停止</button>
+                    <button id="btnExport" class="btn success">💾 导出GIF</button>
+                </div>
+                <div class="progress-bar" id="progressBar" style="display:none;">
+                    <div class="progress-track">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span class="progress-text" id="progressText">准备生成...</span>
+                </div>
+            </section>
+            
+            <!-- 右侧：参数 -->
+            <aside class="sidebar right">
+                <div class="panel">
+                    <h3>⚙️ 基础参数</h3>
+                    <div class="param-group">
+                        <label>画布尺寸</label>
+                        <select id="canvasSize" class="param-input">
+                            <option value="300">300 × 300 (小)</option>
+                            <option value="400" selected>400 × 400 (推荐)</option>
+                            <option value="500">500 × 500 (大)</option>
+                            <option value="600">600 × 600 (超大)</option>
+                        </select>
+                    </div>
+                    <div class="param-group">
+                        <label>动画时长</label>
+                        <div class="param-row">
+                            <input type="range" id="duration" min="0.5" max="5" step="0.5" value="2">
+                            <span class="param-value" id="durationValue">2.0s</span>
+                        </div>
+                    </div>
+                    <div class="param-group">
+                        <label>帧率 (FPS)</label>
+                        <div class="param-row">
+                            <input type="range" id="fps" min="10" max="30" step="5" value="15">
+                            <span class="param-value" id="fpsValue">15fps</span>
+                        </div>
+                    </div>
+                    <div class="param-group">
+                        <label>循环次数</label>
+                        <select id="loopCount" class="param-input">
+                            <option value="0" selected>♾️ 无限循环</option>
+                            <option value="1">1 次</option>
+                            <option value="3">3 次</option>
+                            <option value="5">5 次</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="panel" id="effectParamsPanel">
+                    <h3>✨ 特效参数</h3>
+                    <div id="effectParams">
+                        <!-- 动态插入特效专属参数 -->
+                    </div>
+                </div>
+                
+                <div class="panel tips">
+                    <h3>💡 使用提示</h3>
+                    <ul>
+                        <li>导出后直接拖入OBS使用</li>
+                        <li>黑色背景可用OBS「色度键」滤去</li>
+                        <li>400×400 适合大多数直播间</li>
+                        <li>GIF 文件建议控制在 2MB 以内</li>
+                    </ul>
+                </div>
+            </aside>
+        </main>
+    </div>
+    
+    <script src="lib/gif.js"></script>
+    <script src="js/effects.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
