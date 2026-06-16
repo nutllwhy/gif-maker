@@ -51,7 +51,7 @@
     function init() {
         bindEvents();
         renderTemplates();
-        selectEffect('shining');
+        selectEffect('streamBorder');
         updateCanvasSize();
     }
 
@@ -282,6 +282,15 @@
                 case 'text':
                     inputHtml = `<input type="text" value="${val}" class="param-input" data-param="${param.id}">`;
                     break;
+                case 'select':
+                    inputHtml = `<select class="param-input" data-param="${param.id}">`;
+                    (param.options || []).forEach(opt => {
+                        const label = opt === 'fade' ? '淡入淡出' : opt === 'slide' ? '滑动' : opt === 'zoom' ? '缩放' : opt;
+                        const selected = val === opt ? 'selected' : '';
+                        inputHtml += `<option value="${opt}" ${selected}>${label}</option>`;
+                    });
+                    inputHtml += `</select>`;
+                    break;
                 case 'color':
                     inputHtml = `
                         <div class="param-row">
@@ -339,8 +348,13 @@
         const h = els.canvas.height;
         const params = getEffectParams(effectId);
         
+        // 多图素材：获取其他素材的图片（用于多图轮播）
+        const otherImages = state.materials
+            .filter(m => m.id !== state.activeMaterial.id)
+            .map(m => m.image);
+        
         ctx.clearRect(0, 0, w, h);
-        effect.render(ctx, clamp(progress, 0, 1), state.activeMaterial.image, params, w, h);
+        effect.render(ctx, clamp(progress, 0, 1), state.activeMaterial.image, params, w, h, otherImages);
     }
 
     // ===== 动画播放 =====
@@ -355,6 +369,12 @@
     function startAnimation() {
         if (!state.activeMaterial) {
             alert('请先上传图片素材');
+            return;
+        }
+        
+        // 多图轮播需要至少2张图
+        if (state.activeEffect === 'multiSlide' && state.materials.length < 2) {
+            alert('多图轮播需要至少2张图片素材，请继续上传');
             return;
         }
         
@@ -397,6 +417,12 @@
     function exportGIF() {
         if (!state.activeMaterial) {
             alert('请先上传图片素材');
+            return;
+        }
+        
+        // 多图轮播需要至少2张图
+        if (state.activeEffect === 'multiSlide' && state.materials.length < 2) {
+            alert('多图轮播需要至少2张图片素材，请继续上传');
             return;
         }
         

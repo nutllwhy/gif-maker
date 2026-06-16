@@ -82,6 +82,35 @@ function getFitSize(image, canvasW, canvasH, maxRatio = 0.7) {
     return { width: w, height: h };
 }
 
+// 多图切换：获取当前图片索引和切换进度
+function getMultiSlideInfo(progress, imagesCount, holdRatio = 0.7) {
+    const segment = 1 / imagesCount;
+    const index = Math.floor(progress / segment);
+    const segmentProgress = (progress % segment) / segment;
+    const isTransition = segmentProgress > holdRatio;
+    return {
+        currentIndex: Math.min(index, imagesCount - 1),
+        nextIndex: (index + 1) % imagesCount,
+        transitionProgress: isTransition ? (segmentProgress - holdRatio) / (1 - holdRatio) : 0,
+        isTransition
+    };
+}
+
+// 绘制圆角矩形路径
+function roundRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
 // ===== 粒子系统 =====
 class ParticleSystem {
     constructor(count, seed) {
@@ -120,6 +149,234 @@ class ParticleSystem {
 // ===== 特效定义 =====
 
 const EFFECTS = {
+
+    streamBorder: {
+        id: 'streamBorder',
+        name: '流光边框',
+        description: '直播间卡片动态流光描边，克制实用',
+        icon: '🟦',
+        params: [
+            { id: 'borderWidth', name: '边框宽度', type: 'range', min: 2, max: 12, step: 1, default: 4, suffix: 'px' },
+            { id: 'borderRadius', name: '圆角大小', type: 'range', min: 0, max: 40, step: 2, default: 12, suffix: 'px' },
+            { id: 'glowIntensity', name: '发光强度', type: 'range', min: 0, max: 100, step: 10, default: 40, suffix: '%' },
+            { id: 'hueSpeed', name: '流光速度', type: 'range', min: 1, max: 10, step: 1, default: 4, suffix: '级' },
+            { id: 'bgColor', name: '背景颜色', type: 'color', default: '#000000' },
+            { id: 'borderColor', name: '边框色', type: 'color', default: '#58a6ff' }
+        ],
+        
+        init() {},
+        
+        render(ctx, progress, image, params, width, height, images = []) {
+            const cx = width / 2;
+            const cy = height / 2;
+            const p = { ...this.paramsDefault(), ...params };
+            const borderW = p.borderWidth || 4;
+            const radius = p.borderRadius || 12;
+            const glow = (p.glowIntensity || 40) / 100;
+            const speed = p.hueSpeed || 4;
+            
+            ctx.fillStyle = p.bgColor || '#000000';
+            ctx.fillRect(0, 0, width, height);
+            
+            const fit = getFitSize(image, width, height, 0.65);
+            const imgX = cx - fit.width / 2;
+            const imgY = cy - fit.height / 2;
+            
+            const hueShift = progress * speed * 360;
+            
+            if (glow > 0) {
+                ctx.save();
+                ctx.shadowColor = `hsl(${(hueShift + 180) % 360}, 100%, 65%)`;
+                ctx.shadowBlur = 15 * glow;
+                roundRectPath(ctx, imgX - borderW, imgY - borderW, fit.width + borderW * 2, fit.height + borderW * 2, radius + borderW);
+                ctx.strokeStyle = `hsl(${hueShift % 360}, 100%, 65%)`;
+                ctx.lineWidth = borderW;
+                ctx.stroke();
+                ctx.restore();
+            }
+            
+            roundRectPath(ctx, imgX - borderW, imgY - borderW, fit.width + borderW * 2, fit.height + borderW * 2, radius + borderW);
+            ctx.strokeStyle = `hsl(${hueShift % 360}, 100%, 65%)`;
+            ctx.lineWidth = borderW;
+            ctx.stroke();
+            
+            roundRectPath(ctx, imgX - borderW * 0.5, imgY - borderW * 0.5, fit.width + borderW, fit.height + borderW, radius + borderW * 0.5);
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            ctx.save();
+            roundRectPath(ctx, imgX, imgY, fit.width, fit.height, radius);
+            ctx.clip();
+            ctx.drawImage(image, imgX, imgY, fit.width, fit.height);
+            ctx.restore();
+            
+            const cornerSize = 6;
+            const corners = [
+                [imgX - borderW, imgY - borderW],
+                [imgX + fit.width + borderW, imgY - borderW],
+                [imgX - borderW, imgY + fit.height + borderW],
+                [imgX + fit.width + borderW, imgY + fit.height + borderW]
+            ];
+            const blink = Math.sin(progress * Math.PI * 2) * 0.3 + 0.7;
+            ctx.fillStyle = `hsl(${(hueShift + 180) % 360}, 100%, 70%)`;
+            ctx.globalAlpha = blink;
+            corners.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(x, y, cornerSize * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        },
+        
+        paramsDefault() {
+            return { borderWidth: 4, borderRadius: 12, glowIntensity: 40, hueSpeed: 4, bgColor: '#000000', borderColor: '#58a6ff' };
+        }
+    },
+    
+    breathPulse: {
+        id: 'breathPulse',
+        name: '呼吸脉冲',
+        description: '直播间标识柔和呼吸闪烁，适合角标/上新',
+        icon: '💡',
+        params: [
+            { id: 'pulseSpeed', name: '呼吸速度', type: 'range', min: 1, max: 10, step: 1, default: 4, suffix: '级' },
+            { id: 'maxScale', name: '最大缩放', type: 'range', min: 1, max: 1.15, step: 0.01, default: 1.05, suffix: 'x' },
+            { id: 'glowSize', name: '发光大小', type: 'range', min: 0, max: 30, step: 2, default: 10, suffix: 'px' },
+            { id: 'bgColor', name: '背景颜色', type: 'color', default: '#000000' }
+        ],
+        
+        init() {},
+        
+        render(ctx, progress, image, params, width, height, images = []) {
+            const cx = width / 2;
+            const cy = height / 2;
+            const p = { ...this.paramsDefault(), ...params };
+            const speed = p.pulseSpeed || 4;
+            const maxScale = p.maxScale || 1.05;
+            const glowSize = p.glowSize || 10;
+            
+            ctx.fillStyle = p.bgColor || '#000000';
+            ctx.fillRect(0, 0, width, height);
+            
+            const pulse = Math.sin(progress * Math.PI * speed * 2) * 0.5 + 0.5;
+            const scale = 1 + (maxScale - 1) * pulse;
+            const alpha = 0.85 + pulse * 0.15;
+            
+            const fit = getFitSize(image, width, height, 0.65);
+            
+            if (glowSize > 0) {
+                ctx.save();
+                ctx.globalAlpha = pulse * 0.4;
+                ctx.shadowColor = '#fff';
+                ctx.shadowBlur = glowSize * 2;
+                const gw = fit.width * scale * 1.02;
+                const gh = fit.height * scale * 1.02;
+                ctx.drawImage(image, cx - gw/2, cy - gh/2, gw, gh);
+                ctx.restore();
+            }
+            
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            const imgW = fit.width * scale;
+            const imgH = fit.height * scale;
+            ctx.drawImage(image, cx - imgW/2, cy - imgH/2, imgW, imgH);
+            ctx.restore();
+            
+            ctx.globalAlpha = 1;
+        },
+        
+        paramsDefault() {
+            return { pulseSpeed: 4, maxScale: 1.05, glowSize: 10, bgColor: '#000000' };
+        }
+    },
+    
+    multiSlide: {
+        id: 'multiSlide',
+        name: '多图轮播',
+        description: '多张图片自动切换，适合商品组图展示',
+        icon: '🔄',
+        params: [
+            { id: 'switchSpeed', name: '切换速度', type: 'range', min: 1, max: 10, step: 1, default: 5, suffix: '级' },
+            { id: 'transitionType', name: '过渡方式', type: 'select', default: 'fade', options: ['fade', 'slide', 'zoom'] },
+            { id: 'bgColor', name: '背景颜色', type: 'color', default: '#000000' }
+        ],
+        
+        init() {},
+        
+        render(ctx, progress, image, params, width, height, images = []) {
+            const cx = width / 2;
+            const cy = height / 2;
+            const p = { ...this.paramsDefault(), ...params };
+            const speed = p.switchSpeed || 5;
+            const transitionType = p.transitionType || 'fade';
+            
+            ctx.fillStyle = p.bgColor || '#000000';
+            ctx.fillRect(0, 0, width, height);
+            
+            const allImages = images.length > 0 ? [...images] : [image];
+            const totalImages = allImages.length;
+            if (totalImages === 0) return;
+            
+            const info = getMultiSlideInfo(progress, totalImages, 0.7);
+            const currentImg = allImages[info.currentIndex];
+            const nextImg = allImages[info.nextIndex];
+            
+            const fit = getFitSize(currentImg, width, height, 0.65);
+            
+            if (transitionType === 'fade') {
+                ctx.save();
+                ctx.globalAlpha = 1 - info.transitionProgress;
+                ctx.drawImage(currentImg, cx - fit.width/2, cy - fit.height/2, fit.width, fit.height);
+                ctx.restore();
+                
+                if (info.isTransition) {
+                    ctx.save();
+                    ctx.globalAlpha = info.transitionProgress;
+                    ctx.drawImage(nextImg, cx - fit.width/2, cy - fit.height/2, fit.width, fit.height);
+                    ctx.restore();
+                }
+            } else if (transitionType === 'slide') {
+                const slideX = info.isTransition ? info.transitionProgress * width * 0.8 : 0;
+                ctx.drawImage(currentImg, cx - fit.width/2 - slideX, cy - fit.height/2, fit.width, fit.height);
+                if (info.isTransition) {
+                    ctx.drawImage(nextImg, cx - fit.width/2 + width * 0.8 - slideX, cy - fit.height/2, fit.width, fit.height);
+                }
+            } else if (transitionType === 'zoom') {
+                const zoomOut = 1 - info.transitionProgress * 0.3;
+                const zoomIn = 0.7 + info.transitionProgress * 0.3;
+                ctx.save();
+                ctx.globalAlpha = 1 - info.transitionProgress * 0.5;
+                ctx.drawImage(currentImg, cx - fit.width * zoomOut / 2, cy - fit.height * zoomOut / 2, fit.width * zoomOut, fit.height * zoomOut);
+                ctx.restore();
+                if (info.isTransition) {
+                    ctx.save();
+                    ctx.globalAlpha = info.transitionProgress;
+                    ctx.drawImage(nextImg, cx - fit.width * zoomIn / 2, cy - fit.height * zoomIn / 2, fit.width * zoomIn, fit.height * zoomIn);
+                    ctx.restore();
+                }
+            }
+            
+            const dotSize = 6;
+            const gap = 12;
+            const totalWidth = totalImages * dotSize + (totalImages - 1) * gap;
+            const startX = cx - totalWidth / 2 + dotSize / 2;
+            const dotY = height - 20;
+            
+            for (let i = 0; i < totalImages; i++) {
+                const isActive = i === info.currentIndex;
+                ctx.beginPath();
+                ctx.arc(startX + i * gap, dotY, isActive ? dotSize * 0.8 : dotSize * 0.5, 0, Math.PI * 2);
+                ctx.fillStyle = isActive ? '#58a6ff' : 'rgba(255,255,255,0.3)';
+                ctx.fill();
+            }
+        },
+        
+        paramsDefault() {
+            return { switchSpeed: 5, transitionType: 'fade', bgColor: '#000000' };
+        }
+    },
+    
     shining: {
         id: 'shining',
         name: '闪亮登场',
@@ -490,4 +747,6 @@ if (typeof window !== 'undefined') {
     window.seededRandom = seededRandom;
     window.ParticleSystem = ParticleSystem;
     window.getFitSize = getFitSize;
+    window.getMultiSlideInfo = getMultiSlideInfo;
+    window.roundRectPath = roundRectPath;
 }
