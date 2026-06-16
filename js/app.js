@@ -25,6 +25,8 @@
         fps: document.getElementById('fps'),
         fpsValue: document.getElementById('fpsValue'),
         loopCount: document.getElementById('loopCount'),
+        transparentBg: document.getElementById('transparentBg'),
+        transparentBgLabel: document.getElementById('transparentBgLabel'),
         effectParams: document.getElementById('effectParams')
     };
 
@@ -42,7 +44,8 @@
             canvasSize: 400,
             duration: 2.0,
             fps: 15,
-            loopCount: 0
+            loopCount: 0,
+            transparent: false     // 透明背景
         },
         effectParamValues: {}   // 各特效的参数值
     };
@@ -96,6 +99,17 @@
         });
         els.loopCount.addEventListener('change', () => {
             state.baseParams.loopCount = parseInt(els.loopCount.value);
+        });
+        els.transparentBg.addEventListener('change', () => {
+            state.baseParams.transparent = els.transparentBg.checked;
+            els.transparentBgLabel.textContent = state.baseParams.transparent ? '开启' : '关闭';
+            // 更新画布背景色
+            if (state.baseParams.transparent) {
+                els.canvas.style.background = 'transparent';
+            } else {
+                els.canvas.style.background = '#000';
+            }
+            if (!state.isPlaying) renderPreview(0);
         });
     }
 
@@ -347,6 +361,8 @@
         const w = els.canvas.width;
         const h = els.canvas.height;
         const params = getEffectParams(effectId);
+        // 注入透明背景参数
+        params.transparent = state.baseParams.transparent;
         
         // 多图素材：获取其他素材的图片（用于多图轮播）
         const otherImages = state.materials
@@ -453,7 +469,8 @@
                     quality: 10,
                     width: w,
                     height: h,
-                    workerScript: 'lib/gif.worker.js'
+                    workerScript: 'lib/gif.worker.js',
+                    transparent: state.baseParams.transparent ? 0x000000 : null
                 });
                 
                 // 创建临时 canvas 用于逐帧添加

@@ -175,8 +175,10 @@ const EFFECTS = {
             const glow = (p.glowIntensity || 40) / 100;
             const speed = p.hueSpeed || 4;
             
-            ctx.fillStyle = p.bgColor || '#000000';
-            ctx.fillRect(0, 0, width, height);
+            if (!p.transparent) {
+                ctx.fillStyle = p.bgColor || '#000000';
+                ctx.fillRect(0, 0, width, height);
+            }
             
             const fit = getFitSize(image, width, height, 0.65);
             const imgX = cx - fit.width / 2;
@@ -256,8 +258,10 @@ const EFFECTS = {
             const maxScale = p.maxScale || 1.05;
             const glowSize = p.glowSize || 10;
             
-            ctx.fillStyle = p.bgColor || '#000000';
-            ctx.fillRect(0, 0, width, height);
+            if (!p.transparent) {
+                ctx.fillStyle = p.bgColor || '#000000';
+                ctx.fillRect(0, 0, width, height);
+            }
             
             const pulse = Math.sin(progress * Math.PI * speed * 2) * 0.5 + 0.5;
             const scale = 1 + (maxScale - 1) * pulse;
@@ -311,8 +315,10 @@ const EFFECTS = {
             const speed = p.switchSpeed || 5;
             const transitionType = p.transitionType || 'fade';
             
-            ctx.fillStyle = p.bgColor || '#000000';
-            ctx.fillRect(0, 0, width, height);
+            if (!p.transparent) {
+                ctx.fillStyle = p.bgColor || '#000000';
+                ctx.fillRect(0, 0, width, height);
+            }
             
             const allImages = images.length > 0 ? [...images] : [image];
             const totalImages = allImages.length;
@@ -410,8 +416,10 @@ const EFFECTS = {
             const p = { ...this.paramsDefault(), ...params };
             
             // 背景
-            ctx.fillStyle = p.bgColor || '#000000';
-            ctx.fillRect(0, 0, width, height);
+            if (!p.transparent) {
+                ctx.fillStyle = p.bgColor || '#000000';
+                ctx.fillRect(0, 0, width, height);
+            }
             
             // 更新粒子
             this.system.update(progress);
@@ -516,8 +524,10 @@ const EFFECTS = {
             
             // 背景脉冲
             const bgPulse = Math.sin(progress * Math.PI * speed * 2) * 0.5 + 0.5;
-            ctx.fillStyle = p.bgColor || '#000000';
-            ctx.fillRect(0, 0, width, height);
+            if (!p.transparent) {
+                ctx.fillStyle = p.bgColor || '#000000';
+                ctx.fillRect(0, 0, width, height);
+            }
             
             // 红色脉冲覆盖层
             ctx.fillStyle = `rgba(218, 54, 51, ${bgPulse * 0.4})`;
@@ -603,8 +613,10 @@ const EFFECTS = {
             const cy = height / 2;
             const p = { ...this.paramsDefault(), ...params };
             
-            ctx.fillStyle = p.bgColor || '#000000';
-            ctx.fillRect(0, 0, width, height);
+            if (!p.transparent) {
+                ctx.fillStyle = p.bgColor || '#000000';
+                ctx.fillRect(0, 0, width, height);
+            }
             
             // 爆炸粒子（后半段）
             if (progress > 0.15) {
@@ -679,8 +691,10 @@ const EFFECTS = {
             const cy = height / 2;
             const p = { ...this.paramsDefault(), ...params };
             
-            ctx.fillStyle = p.bgColor || '#000000';
-            ctx.fillRect(0, 0, width, height);
+            if (!p.transparent) {
+                ctx.fillStyle = p.bgColor || '#000000';
+                ctx.fillRect(0, 0, width, height);
+            }
             
             // 当前数字
             const eased = easeInOutCubic(progress);
