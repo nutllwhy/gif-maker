@@ -31,6 +31,9 @@
     };
 
     const ctx = els.canvas.getContext('2d');
+    const GIF_TRANSPARENT_COLOR = 0x01ff02;
+    const GIF_TRANSPARENT_RGB = [0x01, 0xff, 0x02];
+    const GIF_TRANSPARENT_ALPHA_THRESHOLD = 96;
 
     // ===== 状态 =====
     const state = {
@@ -376,6 +379,28 @@
         effect.render(ctx, clamp(progress, 0, 1), state.activeMaterial.image, params, w, h, otherImages);
     }
 
+    function prepareTransparentFrame(frameCtx, width, height) {
+        const imageData = frameCtx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        const [tr, tg, tb] = GIF_TRANSPARENT_RGB;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            const alpha = data[i + 3];
+            
+            if (alpha < GIF_TRANSPARENT_ALPHA_THRESHOLD) {
+                data[i] = tr;
+                data[i + 1] = tg;
+                data[i + 2] = tb;
+            } else if (data[i] === tr && data[i + 1] === tg && data[i + 2] === tb) {
+                data[i + 2] = tb + 1;
+            }
+            
+            data[i + 3] = 255;
+        }
+        
+        frameCtx.putImageData(imageData, 0, 0);
+    }
+
     // ===== 动画播放 =====
     function togglePlay() {
         if (state.isPlaying) {
@@ -473,7 +498,7 @@
                     width: w,
                     height: h,
                     workerScript: 'lib/gif.worker.js',
-                    transparent: state.baseParams.transparent ? 1 : null
+                    transparent: state.baseParams.transparent ? GIF_TRANSPARENT_COLOR : null
                 });
                 
                 // 创建临时 canvas 用于逐帧添加
@@ -531,72 +556,12 @@
                     tempCtx.clearRect(0, 0, w, h);
                     tempCtx.drawImage(els.canvas, 0, 0);
                     
-                    // 透明模式下：像素级抠图处理
-                    // 遍历所有像素，将背景区域和边缘渗色彻底透明化
                     if (state.baseParams.transparent) {
-                        const imageData = tempCtx.getImageData(0, 0, w, h);
-                        const data = imageData.data;
-                        
-                        // 第一轮：标记所有背景像素（alpha=0）
-                        for (let i = 0; i < data.length; i += 4) {
-                            if (data[i + 3] < 5) {
-                                data[i] = 1;       // R
-                                data[i + 1] = 1;   // G
-                                data[i + 2] = 1;   // B
-                                data[i + 3] = 255; // A
-                            }
-                        }
-                        
-                        // 第二轮：边缘清理 - 清理与背景相邻的渗色像素
-                        // 只清理 alpha 较低且颜色接近黑/白的边缘像素
-                        for (let y = 1; y < h - 1; y++) {
-                            for (let x = 1; x < w - 1; x++) {
-                                const idx = (y * w + x) * 4;
-                                const a = data[idx + 3];
-                                
-                                // 只处理半透明像素（alpha 在 5-200 之间）
-                                if (a < 5 || a > 200) continue;
-                                
-                                const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-                                const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
-                                
-                                // 检查相邻像素是否有背景（R=G=B=1）
-                                const neighbors = [
-                                    (y * w + x - 1) * 4, (y * w + x + 1) * 4,
-                                    ((y - 1) * w + x) * 4, ((y + 1) * w + x) * 4
-                                ];
-                                let hasBackgroundNeighbor = false;
-                                for (const nIdx of neighbors) {
-                                    if (nIdx >= 0 && nIdx < data.length) {
-                                        if (data[nIdx] === 1 && data[nIdx + 1] === 1 && data[nIdx + 2] === 1) {
-                                            hasBackgroundNeighbor = true;
-                                            break;
-                                        }
-                                    }
-                                }
-                                
-                                // 如果像素很暗（黑边渗色）或很亮（白边渗色）且与背景相邻
-                                if (hasBackgroundNeighbor) {
-                                    const distToBlack = brightness;
-                                    const distToWhite = 255 - brightness;
-                                    
-                                    // 如果是暗边渗色（距离黑色<40）或亮边渗色（距离白色<40）
-                                    if (distToBlack < 40 || distToWhite < 40) {
-                                        // 彻底透明化
-                                        data[idx] = 1;
-                                        data[idx + 1] = 1;
-                                        data[idx + 2] = 1;
-                                        data[idx + 3] = 255;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        tempCtx.putImageData(imageData, 0, 0);
+                        prepareTransparentFrame(tempCtx, w, h);
                     }
                     
-                    // 添加帧（使用 copy 避免引用问题）
-                    gif.addFrame(tempCanvas, { copy: true, delay: delay });
+                    // 添加上下文本身，避免 gif.js 在内部画布上预填黑底。
+                    gif.addFrame(tempCtx, { copy: true, delay: delay });
                     
                     frameIndex++;
                     const percent = Math.round((frameIndex / totalFrames) * 50);
