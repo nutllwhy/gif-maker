@@ -401,6 +401,24 @@
         frameCtx.putImageData(imageData, 0, 0);
     }
 
+    async function patchGifBackgroundToTransparent(blob) {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const isGif = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
+        if (!isGif || bytes.length < 14) return blob;
+        
+        for (let i = 0; i < bytes.length - 8; i++) {
+            if (bytes[i] === 0x21 && bytes[i + 1] === 0xf9 && bytes[i + 2] === 0x04) {
+                const transparentEnabled = (bytes[i + 3] & 1) === 1;
+                if (transparentEnabled) {
+                    bytes[11] = bytes[i + 6];
+                }
+                break;
+            }
+        }
+        
+        return new Blob([bytes], { type: 'image/gif' });
+    }
+
     // ===== 动画播放 =====
     function togglePlay() {
         if (state.isPlaying) {
@@ -498,7 +516,8 @@
                     width: w,
                     height: h,
                     workerScript: 'lib/gif.worker.js',
-                    transparent: state.baseParams.transparent ? GIF_TRANSPARENT_COLOR : null
+                    transparent: state.baseParams.transparent ? GIF_TRANSPARENT_COLOR : null,
+                    globalPalette: state.baseParams.transparent ? true : false
                 });
                 
                 // 创建临时 canvas 用于逐帧添加
@@ -513,12 +532,16 @@
                     els.progressText.textContent = `编码中... ${Math.round(p * 100)}%`;
                 });
                 
-                gif.on('finished', (blob) => {
+                gif.on('finished', async (blob) => {
                     els.progressFill.style.width = '100%';
                     els.progressText.textContent = '导出完成!';
                     
+                    const outputBlob = state.baseParams.transparent
+                        ? await patchGifBackgroundToTransparent(blob)
+                        : blob;
+                    
                     // 下载文件
-                    const url = URL.createObjectURL(blob);
+                    const url = URL.createObjectURL(outputBlob);
                     const a = document.createElement('a');
                     a.href = url;
                     a.download = `动效_${EFFECTS[state.activeEffect].name}_${Date.now()}.gif`;
