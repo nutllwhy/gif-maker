@@ -470,7 +470,7 @@
                     width: w,
                     height: h,
                     workerScript: 'lib/gif.worker.js',
-                    transparent: state.baseParams.transparent ? 0x000000 : null
+                    transparent: state.baseParams.transparent ? 0xFF00FF : null
                 });
                 
                 // 创建临时 canvas 用于逐帧添加
@@ -527,6 +527,21 @@
                     // 复制到临时 canvas
                     tempCtx.clearRect(0, 0, w, h);
                     tempCtx.drawImage(els.canvas, 0, 0);
+                    
+                    // 透明模式下：将 alpha 接近 0 的像素标记为洋红（#FF00FF），避免纯黑被误透明
+                    if (state.baseParams.transparent) {
+                        const imageData = tempCtx.getImageData(0, 0, w, h);
+                        const data = imageData.data;
+                        for (let i = 0; i < data.length; i += 4) {
+                            if (data[i + 3] < 10) {
+                                data[i] = 255;       // R
+                                data[i + 1] = 0;     // G
+                                data[i + 2] = 255;   // B
+                                data[i + 3] = 255;   // A
+                            }
+                        }
+                        tempCtx.putImageData(imageData, 0, 0);
+                    }
                     
                     // 添加帧（使用 copy 避免引用问题）
                     gif.addFrame(tempCanvas, { copy: true, delay: delay });
