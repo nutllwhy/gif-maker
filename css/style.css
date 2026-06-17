@@ -397,6 +397,17 @@ input[type="range"]::-moz-range-thumb {
     background: #000;
 }
 
+.canvas-wrapper.transparent {
+    background: 
+        linear-gradient(45deg, #1a1a1a 25%, transparent 25%),
+        linear-gradient(-45deg, #1a1a1a 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #1a1a1a 75%),
+        linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+    background-color: #0a0a0a;
+}
+
 .canvas-overlay {
     position: absolute;
     top: 0;
