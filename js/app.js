@@ -572,13 +572,11 @@
         // 注入透明背景参数
         params.transparent = state.baseParams.transparent;
         
-        // 多图素材：获取其他素材的图片（用于多图轮播）
-        const otherImages = state.materials
-            .filter(m => m.id !== state.activeMaterial.id)
-            .map(m => m.image);
+        // 多图素材：获取所有素材的图片（用于多图轮播等需要全部图片的特效）
+        const allImages = state.materials.map(m => m.image);
         
         ctx.clearRect(0, 0, w, h);
-        effect.render(ctx, clamp(progress, 0, 1), state.activeMaterial.image, params, w, h, otherImages);
+        effect.render(ctx, clamp(progress, 0, 1), state.activeMaterial.image, params, w, h, allImages);
     }
 
     function prepareTransparentFrame(frameCtx, width, height) {
