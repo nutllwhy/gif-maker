@@ -28,6 +28,28 @@
                     </div>
                     <div class="material-list" id="materialList"></div>
                 </div>
+
+                <div class="panel" id="mattingPanel">
+                    <h3>✂️ 素材抠图</h3>
+                    <div class="param-group">
+                        <label>去白底强度</label>
+                        <div class="param-row">
+                            <input type="range" id="mattingTolerance" min="10" max="160" step="5" value="55">
+                            <span class="param-value" id="mattingToleranceValue">55</span>
+                        </div>
+                    </div>
+                    <div class="param-group">
+                        <label>边缘柔化</label>
+                        <div class="param-row">
+                            <input type="range" id="mattingFeather" min="0" max="90" step="5" value="25">
+                            <span class="param-value" id="mattingFeatherValue">25</span>
+                        </div>
+                    </div>
+                    <div class="material-actions">
+                        <button id="btnRemoveBg" class="btn small primary">✂️ 去白底</button>
+                        <button id="btnRestoreBg" class="btn small">↩ 还原</button>
+                    </div>
+                </div>
                 
                 <div class="panel">
                     <h3>🎨 特效模板</h3>

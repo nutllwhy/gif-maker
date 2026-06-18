@@ -27,6 +27,12 @@
         loopCount: document.getElementById('loopCount'),
         transparentBg: document.getElementById('transparentBg'),
         transparentBgLabel: document.getElementById('transparentBgLabel'),
+        mattingTolerance: document.getElementById('mattingTolerance'),
+        mattingToleranceValue: document.getElementById('mattingToleranceValue'),
+        mattingFeather: document.getElementById('mattingFeather'),
+        mattingFeatherValue: document.getElementById('mattingFeatherValue'),
+        btnRemoveBg: document.getElementById('btnRemoveBg'),
+        btnRestoreBg: document.getElementById('btnRestoreBg'),
         effectParams: document.getElementById('effectParams')
     };
 
@@ -85,6 +91,8 @@
         els.btnPlay.addEventListener('click', togglePlay);
         els.btnStop.addEventListener('click', stopAnimation);
         els.btnExport.addEventListener('click', exportGIF);
+        els.btnRemoveBg.addEventListener('click', removeActiveMaterialBackground);
+        els.btnRestoreBg.addEventListener('click', restoreActiveMaterialBackground);
 
         // 基础参数
         els.canvasSize.addEventListener('change', () => {
@@ -102,6 +110,12 @@
         });
         els.loopCount.addEventListener('change', () => {
             state.baseParams.loopCount = parseInt(els.loopCount.value);
+        });
+        els.mattingTolerance.addEventListener('input', () => {
+            els.mattingToleranceValue.textContent = els.mattingTolerance.value;
+        });
+        els.mattingFeather.addEventListener('input', () => {
+            els.mattingFeatherValue.textContent = els.mattingFeather.value;
         });
         els.transparentBg.addEventListener('change', () => {
             state.baseParams.transparent = els.transparentBg.checked;
@@ -136,7 +150,11 @@
                 id: Date.now() + Math.random(),
                 file: file,
                 url: url,
+                originalUrl: url,
                 image: img,
+                originalImage: img,
+                processedUrl: null,
+                isMatted: false,
                 name: file.name
             };
             state.materials.push(material);
@@ -159,7 +177,11 @@
         e.stopPropagation();
         const idx = state.materials.findIndex(m => m.id === id);
         if (idx >= 0) {
-            URL.revokeObjectURL(state.materials[idx].url);
+            const material = state.materials[idx];
+            URL.revokeObjectURL(material.originalUrl);
+            if (material.processedUrl) {
+                URL.revokeObjectURL(material.processedUrl);
+            }
             state.materials.splice(idx, 1);
             if (state.activeMaterial && state.activeMaterial.id === id) {
                 state.activeMaterial = state.materials[0] || null;
@@ -184,12 +206,192 @@
             div.className = 'material-item' + (state.activeMaterial && state.activeMaterial.id === m.id ? ' active' : '');
             div.innerHTML = `
                 <img src="${m.url}" alt="${m.name}">
+                ${m.isMatted ? '<div class="material-badge">透</div>' : ''}
                 <div class="remove-btn" title="删除">×</div>
             `;
             div.addEventListener('click', () => selectMaterial(m));
             div.querySelector('.remove-btn').addEventListener('click', (e) => removeMaterial(m.id, e));
             els.materialList.appendChild(div);
         });
+    }
+
+    function sampleBackgroundColor(imageData, width, height) {
+        const data = imageData.data;
+        const sampleSize = Math.max(4, Math.min(18, Math.floor(Math.min(width, height) * 0.06)));
+        const corners = [
+            [0, 0],
+            [width - sampleSize, 0],
+            [0, height - sampleSize],
+            [width - sampleSize, height - sampleSize]
+        ];
+        let r = 0, g = 0, b = 0, count = 0;
+        
+        corners.forEach(([startX, startY]) => {
+            for (let y = startY; y < startY + sampleSize; y++) {
+                for (let x = startX; x < startX + sampleSize; x++) {
+                    const idx = (y * width + x) * 4;
+                    const alpha = data[idx + 3] / 255;
+                    if (alpha <= 0) continue;
+                    r += data[idx] * alpha;
+                    g += data[idx + 1] * alpha;
+                    b += data[idx + 2] * alpha;
+                    count += alpha;
+                }
+            }
+        });
+        
+        if (count === 0) return [255, 255, 255];
+        return [r / count, g / count, b / count];
+    }
+
+    function removeBackgroundFromImage(image, tolerance, feather) {
+        const width = image.naturalWidth || image.width;
+        const height = image.naturalHeight || image.height;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const imageCtx = canvas.getContext('2d', { willReadFrequently: true });
+        imageCtx.drawImage(image, 0, 0);
+        
+        const imageData = imageCtx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        const [bgR, bgG, bgB] = sampleBackgroundColor(imageData, width, height);
+        const visited = new Uint8Array(width * height);
+        const stack = new Int32Array(width * height);
+        let stackSize = 0;
+        const limit = tolerance;
+        const softLimit = tolerance + feather;
+        
+        function colorDistanceAt(pixelIndex) {
+            const idx = pixelIndex * 4;
+            const dr = data[idx] - bgR;
+            const dg = data[idx + 1] - bgG;
+            const db = data[idx + 2] - bgB;
+            return Math.sqrt(dr * dr + dg * dg + db * db);
+        }
+        
+        function pushIfBackground(x, y) {
+            if (x < 0 || y < 0 || x >= width || y >= height) return;
+            const pixelIndex = y * width + x;
+            if (visited[pixelIndex]) return;
+            const alpha = data[pixelIndex * 4 + 3];
+            if (alpha === 0 || colorDistanceAt(pixelIndex) <= softLimit) {
+                visited[pixelIndex] = 1;
+                stack[stackSize++] = pixelIndex;
+            }
+        }
+        
+        for (let x = 0; x < width; x++) {
+            pushIfBackground(x, 0);
+            pushIfBackground(x, height - 1);
+        }
+        for (let y = 1; y < height - 1; y++) {
+            pushIfBackground(0, y);
+            pushIfBackground(width - 1, y);
+        }
+        
+        while (stackSize > 0) {
+            const pixelIndex = stack[--stackSize];
+            const x = pixelIndex % width;
+            const y = Math.floor(pixelIndex / width);
+            pushIfBackground(x + 1, y);
+            pushIfBackground(x - 1, y);
+            pushIfBackground(x, y + 1);
+            pushIfBackground(x, y - 1);
+        }
+        
+        for (let pixelIndex = 0; pixelIndex < visited.length; pixelIndex++) {
+            if (!visited[pixelIndex]) continue;
+            
+            const idx = pixelIndex * 4;
+            const dist = colorDistanceAt(pixelIndex);
+            let keepAlpha = 0;
+            if (feather > 0 && dist > limit) {
+                keepAlpha = Math.min(1, Math.max(0, (dist - limit) / feather));
+            }
+            data[idx + 3] = Math.round(data[idx + 3] * keepAlpha);
+        }
+        
+        imageCtx.putImageData(imageData, 0, 0);
+        return canvas;
+    }
+
+    function setMaterialProcessedImage(material, canvas) {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                alert('抠图失败，请换一张图片或降低强度后重试');
+                return;
+            }
+            
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = () => {
+                if (material.processedUrl) {
+                    URL.revokeObjectURL(material.processedUrl);
+                }
+                material.processedUrl = url;
+                material.url = url;
+                material.image = img;
+                material.isMatted = true;
+                state.baseParams.transparent = true;
+                els.transparentBg.checked = true;
+                els.transparentBgLabel.textContent = '开启';
+                els.canvas.parentElement.classList.add('transparent');
+                els.canvas.style.background = 'transparent';
+                renderMaterialList();
+                if (!state.isPlaying) renderPreview(0);
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(url);
+                alert('抠图结果加载失败，请重试');
+            };
+            img.src = url;
+        }, 'image/png');
+    }
+
+    function removeActiveMaterialBackground() {
+        const material = state.activeMaterial;
+        if (!material) {
+            alert('请先上传并选中一张素材');
+            return;
+        }
+        
+        stopAnimation();
+        els.btnRemoveBg.disabled = true;
+        els.btnRemoveBg.textContent = '处理中...';
+        
+        setTimeout(() => {
+            try {
+                const tolerance = parseInt(els.mattingTolerance.value, 10);
+                const feather = parseInt(els.mattingFeather.value, 10);
+                const canvas = removeBackgroundFromImage(material.originalImage, tolerance, feather);
+                setMaterialProcessedImage(material, canvas);
+            } catch (err) {
+                console.error('抠图失败:', err);
+                alert('抠图失败: ' + err.message);
+            } finally {
+                els.btnRemoveBg.disabled = false;
+                els.btnRemoveBg.textContent = '✂️ 去白底';
+            }
+        }, 30);
+    }
+
+    function restoreActiveMaterialBackground() {
+        const material = state.activeMaterial;
+        if (!material) {
+            alert('请先上传并选中一张素材');
+            return;
+        }
+        
+        if (material.processedUrl) {
+            URL.revokeObjectURL(material.processedUrl);
+        }
+        material.processedUrl = null;
+        material.url = material.originalUrl;
+        material.image = material.originalImage;
+        material.isMatted = false;
+        renderMaterialList();
+        if (!state.isPlaying) renderPreview(0);
     }
 
     // ===== 模板管理 =====
